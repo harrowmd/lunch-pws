@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ffffff">
+  <title>Weather</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: sans-serif;
+      background: #f0f4f8;
+      transition: background 0.5s;
+    }
+    #emoji {
+      font-size: 10rem;
+      line-height: 1;
+      transition: opacity 0.3s;
+    }
+    #status {
+      margin-top: 1.5rem;
+      font-size: 1.1rem;
+      color: #555;
+      text-align: center;
+      max-width: 80vw;
+    }
+    #description {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #888;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="emoji">🌍</div>
+  <div id="status">Detecting location…</div>
+  <div id="description"></div>
+
+  <script>
+    const emojiEl = document.getElementById('emoji');
+    const statusEl = document.getElementById('status');
+    const descEl = document.getElementById('description');
+
+    function weatherEmoji(code, tempC) {
+      // Temperature overrides
+      if (tempC >= 30) return { emoji: '🥵', label: 'Hot' };
+      if (tempC <= 0)  return { emoji: '🥶', label: 'Freezing' };
+
+      // WMO weather interpretation codes
+      if (code === 0)                        return { emoji: '☀️',  label: 'Clear sky' };
+      if (code <= 2)                         return { emoji: '🌤️',  label: 'Partly cloudy' };
+      if (code === 3)                        return { emoji: '☁️',  label: 'Overcast' };
+      if (code <= 48)                        return { emoji: '🌫️',  label: 'Foggy' };
+      if (code <= 57)                        return { emoji: '🌦️',  label: 'Drizzle' };
+      if (code <= 67)                        return { emoji: '🌧️',  label: 'Rain' };
+      if (code <= 77)                        return { emoji: '❄️',  label: 'Snow' };
+      if (code <= 82)                        return { emoji: '🌧️',  label: 'Rain showers' };
+      if (code <= 86)                        return { emoji: '🌨️',  label: 'Snow showers' };
+      if (code <= 99)                        return { emoji: '⛈️',  label: 'Thunderstorm' };
+      return { emoji: '🌡️', label: 'Unknown' };
+    }
+
+    function setBackground(emoji) {
+      const map = {
+        '☀️': '#fff9c4', '🌤️': '#e3f2fd', '☁️': '#eceff1',
+        '🌫️': '#cfd8dc', '🌦️': '#b3e5fc', '🌧️': '#90caf9',
+        '❄️': '#e0f7fa', '🌨️': '#e0f7fa', '⛈️': '#78909c',
+        '🥵': '#ffe082', '🥶': '#b3e5fc', '🌡️': '#f5f5f5',
+      };
+      document.body.style.background = map[emoji] || '#f0f4f8';
+    }
+
+    async function fetchWeather(lat, lon) {
+      statusEl.textContent = 'Fetching weather…';
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Weather API error');
+      const data = await res.json();
+      const temp = data.current.temperature_2m;
+      const code = data.current.weather_code;
+      const { emoji, label } = weatherEmoji(code, temp);
+      emojiEl.textContent = emoji;
+      statusEl.textContent = label;
+      descEl.textContent = `${temp}°C`;
+      setBackground(emoji);
+    }
+
+    function init() {
+      if (!('geolocation' in navigator)) {
+        emojiEl.textContent = '🌍';
+        statusEl.textContent = 'Geolocation not supported';
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            await fetchWeather(pos.coords.latitude, pos.coords.longitude);
+          } catch (e) {
+            emojiEl.textContent = '⚠️';
+            statusEl.textContent = 'Could not load weather';
+            descEl.textContent = e.message;
+          }
+        },
+        (err) => {
+          emojiEl.textContent = '📍';
+          statusEl.textContent = 'Location access denied';
+          descEl.textContent = 'Please allow location access and reload';
+        }
+      );
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+
+    init();
+  </script>
+</body>
+</html>
